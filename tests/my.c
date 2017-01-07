@@ -7,7 +7,7 @@
 
 static int set_vars( fra_req_t * req ) {
 
-	fra( req, "buhu", int ) = fra_my_set( NULL, NULL, NULL, NULL, 0, NULL, 0 );
+	fra( req, "buhu", int ) = 0;
 
 	return 0;
 
@@ -72,6 +72,8 @@ int main() {
 	check( rc == 0, final_cleanup );
 
 	rc = fra_my_init();
+	check( rc == 0, final_cleanup );
+	rc = fra_my_set( NULL, NULL, NULL, NULL, 0, NULL, 0 );
 	check( rc == 0, final_cleanup );
 
 	rc = fra_req_reg( "buhu", int );

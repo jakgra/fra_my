@@ -10,7 +10,7 @@
 
 /**
  * The init function. It isn't thread safe.
- * Must be called at least once before calling any other functions from the library.
+ * Must be called exactly once before calling any other functions from the library.
  */
 int fra_my_init();
 
@@ -34,12 +34,21 @@ typedef int (*fra_my_cb)( fra_req_t * );
  * Main function. Executes a mysql statement on the connection previously set by fra_my_set().
  * callback is the callback to call after the statement finished.
  * con is the connection to use for the sql statement.
- * sql is the sql statement passed to my_stmt_prepare(). The ... are the name of the
- * arguments that are looked up in the req and endpoint hashtables.
+ * sql is the sql statement passed to my_stmt_prepare(). It must be a static string literal,
+ * else use the fra_my_ds() function.
+ * The ... are the names of the arguments that are looked up using the fra() macro.
+ * They must be static string literals, else use the fra_my_ds() function.
  * First the input ones and then the output ones.
  * Should there be NULL in beetween and on the end for type safety?
  */
 int fra_my( fra_my_cb callback, char * sql, ... );
+
+/**
+ * Same as fra_my() but the arguments don't have to be string literals,
+ * but can be dynamic strings (hence *_ds()), and you have to pass the char * and length.
+ * The ... have to be for example: (char *)str1, (int)str1_len, (char *)str2, (int)str2_len, ...
+ */
+int fra_my_ds( fra_my_cb callback, char * sql, int sql_len, ... );
 
 /**
  * Callback type for function to be called after mysql server returns the result or fails after a call to fra_my_multi() or fra_my_con_multi()
@@ -69,6 +78,16 @@ fra_my_con_t * fra_my_con_new( char * host, char * user, char * passwd, char * d
  * previously created via fra_my_con_new()
  */
 void fra_my_con_free( fra_my_con_t * con );
+
+/**
+ * Adds a connection to be available in requests with a specific endpoint.
+ */
+int fra_my_con_add_to_end( fra_my_con_t * con, fra_end_t * e );
+
+/**
+ * Adds a connection to be available in all requests.
+ */
+int fra_my_con_add_to_req( fra_my_con_t * con );
 
 /**
  * Same as fra_my(), but allows to specify the connection to use.
