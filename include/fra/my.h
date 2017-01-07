@@ -9,6 +9,17 @@
 
 
 /**
+ * The init function. It isn't thread safe.
+ * Must be called at least once before calling any other functions from the library.
+ */
+int fra_my_init();
+
+/**
+ * Releases all the resources fra_my_init() and the other functions from the library allocated.
+ */
+void fra_my_deinit();
+
+/**
  * Set the default connection. For argument description see the mysql_real_connect() function from the
  * version of the libmysqlclient you are linking with.
  */

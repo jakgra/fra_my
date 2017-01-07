@@ -71,10 +71,13 @@ int main() {
 	rc = fra_glob_init();
 	check( rc == 0, final_cleanup );
 
-	rc = fra_req_hook_reg( FRA_REQ_NEW, set_vars, 0.099f );
+	rc = fra_my_init();
 	check( rc == 0, final_cleanup );
 
 	rc = fra_req_reg( "buhu", int );
+	check( rc == 0, final_cleanup );
+
+	rc = fra_req_hook_reg( FRA_REQ_NEW, set_vars, 0.099f );
 	check( rc == 0, final_cleanup );
 
 	e = fra_end_new( 20 );
@@ -102,9 +105,9 @@ int main() {
 
 	fra_end_free( e2 );
 
-	fra_glob_deinit();
+	fra_my_deinit();
 
-	debug( "All cleaned up :)" );
+	fra_glob_deinit();
 
 	fclose( f );
 	fclose( f2 );

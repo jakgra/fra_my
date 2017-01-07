@@ -9,7 +9,7 @@ LDLIBS = $(OPTSLIBS)
 BUILD_DIR = build
 
 
-INCLUDE_DIRS = -Iinclude -Ilibs/bstrlib -Ilibs/jsmn -Ilibs/jsmn-jsonpath
+INCLUDE_DIRS = -Iinclude -Ilibs/bstrlib -Ilibs/toolbox
 
 SOURCES = $(wildcard src/**/**/*.c src/**/**/*.c src/**/*.c src/*.c)
 OBJECTS = $(patsubst %.c,$(BUILD_DIR)/%.o,$(SOURCES))

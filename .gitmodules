@@ -1,0 +1,6 @@
+[submodule "libs/bstrlib"]
+	path = libs/bstrlib
+	url = https://github.com/websnarf/bstrlib
+[submodule "libs/toolbox"]
+	path = libs/toolbox
+	url = https://github.com/jakgra/toolbox
