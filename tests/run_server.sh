@@ -18,7 +18,7 @@ EOF
 valgrind --suppressions=fake_fcgx_deinit.valgrind.suppression --log-file=test.valgrind.log --trace-children=yes --leak-check=full --show-leak-kinds=all --error-exitcode=2 -- spawn-fcgi -P test.pid -s test.sock ./test > /dev/null 2>&1 &
 disown
 #allow valgrind time to setup the server...
-sleep 0.3
+sleep 2
 lighttpd -D -f test.conf > /dev/null 2>&1 &
 pid=$!
 disown
@@ -34,7 +34,7 @@ do
 done
 curl -s localhost:8080/die > /dev/null
 #allow the server time to die
-sleep 0.3
+sleep 2
 kill $pid
 if diff test.result $t.expected
 then

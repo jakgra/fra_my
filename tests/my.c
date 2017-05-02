@@ -73,7 +73,15 @@ int main() {
 
 	rc = fra_my_init();
 	check( rc == 0, final_cleanup );
-	rc = fra_my_set( NULL, NULL, NULL, NULL, 0, NULL, 0 );
+	rc = fra_my_set(
+			"localhost",
+			"fra_my",
+			"free_pass",
+			"fra_my",
+			9999,
+			"./mysql_server/mysqld.sock",
+			0
+		       );
 	check( rc == 0, final_cleanup );
 
 	rc = fra_req_reg( "buhu", int );

@@ -2,3 +2,4 @@
 *.valgrind.log
 test*
 *.so
+mysql_server

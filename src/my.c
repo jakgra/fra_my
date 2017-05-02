@@ -52,7 +52,7 @@ static int add_default_con_to_request( fra_req_t * req ) {
 			);
 	check_msg( rc_my, c_cleanup, "mysql_real_connect() failed, are your params ok?" );
 
-	fra( req, "my_con", struct con_my ).con = c;
+	fra( req, "fra_my_con", struct con_my ).con = c;
 
 	return 0;
 
@@ -61,6 +61,14 @@ c_cleanup:
 
 final_cleanup:
 	return -1;
+
+}
+
+static int remove_default_con_from_request( fra_req_t * req ) {
+
+	mysql_close( fra( req, "fra_my_con", struct con_my ).con );
+
+	return 0;
 
 }
 
@@ -81,6 +89,9 @@ int fra_my_init() {
 	check( rc == 0, final_cleanup );
 
 	rc = fra_req_hook_reg( FRA_REQ_CREATED, add_default_con_to_request, 9.0f );
+	check( rc == 0, final_cleanup );
+
+	rc = fra_req_hook_reg( FRA_REQ_FREE, remove_default_con_from_request, 9.0f );
 	check( rc == 0, final_cleanup );
 
 	return 0;

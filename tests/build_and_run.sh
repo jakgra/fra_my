@@ -1,6 +1,8 @@
 #!/bin/bash
 
-LD_LIBRARY_PATH="$(pwd)/../build:$LD_LIBRARY_PATH"
+./setup_mysqld.sh
+
+export LD_LIBRARY_PATH="$(pwd)/../build"
 
 for t in 
 do
