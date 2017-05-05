@@ -41,14 +41,14 @@ typedef int (*fra_my_cb)( fra_req_t * );
  * First the input ones and then the output ones.
  * Should there be NULL in beetween and on the end for type safety?
  */
-int fra_my( fra_my_cb callback, char * sql, ... );
+int fra_my( fra_req_t * req, fra_my_cb callback, char * sql, ... );
 
 /**
  * Same as fra_my() but the arguments don't have to be string literals,
  * but can be dynamic strings (hence *_ds()), and you have to pass the char * and length.
  * The ... have to be for example: (char *)str1, (int)str1_len, (char *)str2, (int)str2_len, ...
  */
-int fra_my_ds( fra_my_cb callback, char * sql, int sql_len, ... );
+int fra_my_ds( fra_req_t * req, fra_my_cb callback, char * sql, int sql_len, ... );
 
 /**
  * Callback type for function to be called after mysql server returns the result or fails after a call to fra_my_multi() or fra_my_con_multi()
@@ -60,7 +60,7 @@ typedef int (*fra_my_multi_cb)( fra_req_t *, MYSQL_RES * );
  * You only have to supply the input params. The output ones you have to set
  * yourself from the my_result type.
  */
-int fra_my_multi( fra_my_multi_cb callback, char * sql, ... );
+int fra_my_multi( fra_req_t * req, fra_my_multi_cb callback, char * sql, ... );
 
 /**
  * Support for multiple different connections, to different mysql servers.
@@ -98,6 +98,32 @@ int fra_my_con( fra_my_cb callback, fra_my_con_t * con, char * sql, ... );
  * Same as fra_my_multi(), but allows to specify the connection to use.
  */
 int fra_my_con_multi( fra_my_multi_cb callback, fra_my_con_t * con, char * sql, ... );
+
+/**
+ * Register additional input or output types for mysql data binding (prepared statements).
+ */
+int fra_my_reg_input_type(
+		char * type_name,
+		int (*callback)(
+			void * var,
+			const char * type_name,
+			int type_name_len,
+			MYSQL_BIND * input
+			)
+		);
+
+/**
+ * Register additional input or output types for mysql data binding (prepared statements).
+ */
+int fra_my_reg_output_type(
+		char * type_name,
+		int (*callback)(
+			void * var,
+			const char * type_name,
+			int type_name_len,
+			MYSQL_BIND * output
+			)
+		);
 
 
 

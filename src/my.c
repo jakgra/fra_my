@@ -6,6 +6,9 @@
 #include <mysql/mysql.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <jak_ht.h>
+#include <jak_da.h>
 
 
 
@@ -22,22 +25,33 @@ struct fra_my_con {
 
 struct con_my {
 	MYSQL * con;
-	/*statements hashtable...*/
+	jak_ht_t * stmts;
+	jak_da_t * in;
+	jak_da_t * out;
 };
 
 static fra_my_con_t * default_con = NULL;
 
 static int add_default_con_to_request( fra_req_t * req ) {
 
+	int rc;
 	MYSQL * rc_my;
 
 	MYSQL * c;
+	struct con_my * con;
 
 
-	check_msg( default_con, final_cleanup, "You have to call fra_my_set() before the first request comes in." );
+	check_msg(
+			default_con,
+			final_cleanup,
+			"You have to call fra_my_set() before the first request comes in."
+		 );
 
 	c = mysql_init( NULL );
 	check( c, final_cleanup );
+
+	rc = mysql_options( c, MYSQL_OPT_NONBLOCK, 0 );
+	check( rc == 0, c_cleanup );
 
 	//TODO connect async
 	rc_my = mysql_real_connect(
@@ -52,9 +66,23 @@ static int add_default_con_to_request( fra_req_t * req ) {
 			);
 	check_msg( rc_my, c_cleanup, "mysql_real_connect() failed, are your params ok?" );
 
-	fra( req, "fra_my_con", struct con_my ).con = c;
+	con = fra( req, "fra_my_con", struct con_my * );
+	con = malloc( sizeof( struct con_my ) );
+	check( con, c_cleanup );
+
+	con->con = c;
+	con->stmts = jak_ht_new( 50, -1.0f, stmt_compare, jak_hash_bstring, stmt_destruct );
+	con->in = jak_da_new( 2, -1.0f, sizeof( MYSQL_BIND ) );
+	con->out = jak_da_new( 2, -1.0f, sizeof( MYSQL_BIND ) );
+	check( con->stmts && con->in && con->out, con_cleanup );
 
 	return 0;
+
+con_cleanup:
+	jak_ht_free( con->stmts );
+	jak_da_free( con->in );
+	jak_da_free( con->out );
+	free( con );
 
 c_cleanup:
 	mysql_close( c );
@@ -66,7 +94,15 @@ final_cleanup:
 
 static int remove_default_con_from_request( fra_req_t * req ) {
 
-	mysql_close( fra( req, "fra_my_con", struct con_my ).con );
+	struct con_my * con;
+
+
+	con = fra( req, "fra_my_con", struct con_my * );
+	mysql_close( con->con );
+	jak_ht_free( con->stmts );
+	jak_da_free( con->in );
+	jak_da_free( con->out );
+	free( con );
 
 	return 0;
 
@@ -85,7 +121,7 @@ int fra_my_init() {
 	rc = mysql_library_init( 0, 0, NULL );
 	check( rc == 0, final_cleanup );
 
-	rc = fra_req_reg( "fra_my_con", struct con_my );
+	rc = fra_req_reg( "fra_my_con", struct con_my * );
 	check( rc == 0, final_cleanup );
 
 	rc = fra_req_hook_reg( FRA_REQ_CREATED, add_default_con_to_request, 9.0f );
@@ -167,6 +203,115 @@ int fra_my_set( char * host, char * user, char * passwd, char * db, unsigned int
 	check( default_con, final_cleanup );
 
 	return 0;
+
+final_cleanup:
+	return -1;
+
+}
+
+int fra_my( fra_req_t * req, fra_my_cb callback, char * sql, ... ) {
+
+	int rc;
+
+	va_list argp;
+	unsigned int i;
+	unsigned int count;
+	const char * var_name;
+	const char * type;
+	int type_len;
+	void * var;
+	MYSQL_STMT * stmt;
+	struct con_my * con;
+
+
+	stmt = get_stmt( req, sql );
+	check( stmt, final_cleanup );
+
+	count = mysql_stmt_param_count( stmt );
+
+	con = fra( req, "fra_my_con", struct con_my * );
+	check( con, final_cleanup );
+
+	rc = jak_da_resize( con->in, count );
+	check( rc == 0, final_cleanup );
+
+	rc = jak_da_zero_out( con->in );
+	check( rc == 0, final_cleanup );
+
+	va_start( argp, sql );
+
+	for( i = 0; i < count; i++ ) {
+
+		var_name = va_arg( argp, const char * );
+		check_msg(
+				var_name,
+				va_cleanup,
+				"Do you have enough bind params in your fra_my() call?"
+			 );
+
+		var = fra_var_get_with_type( req, var_name, sizeof( var_name ) - 1, &type, &type_len );
+		check( var && type && type_len > 0, va_cleanup );
+
+		rc = call_bind_function_input(
+				var,
+				var_name,
+				sizeof( var_name ) - 1,
+				type,
+				type_len,
+				(MYSQL_BIND *)jak_da_get( con->in, i )
+				);
+		check( rc == 0, va_cleanup );
+
+	}
+
+	rc = mysql_stmt_bind_param( stmt, (MYSQL_BIND *)con->in->el );
+	check( rc == 0, va_cleanup );
+
+	count = mysql_stmt_field_count( stmt );
+
+	rc = jak_da_resize( con->out, count );
+	check( rc == 0, va_cleanup );
+
+	rc = jak_da_zero_out( con->out );
+	check( rc == 0, va_cleanup );
+
+	for( i = 0; i < count; i++ ) {
+
+		var_name = va_arg( argp, const char * );
+		check_msg(
+				var_name,
+				va_cleanup,
+				"Do you have enough bind params in your fra_my() call?"
+			 );
+
+		var = fra_var_get_with_type( req, var_name, sizeof( var_name ) - 1, &type, &type_len );
+		check( var && type && type_len > 0, va_cleanup );
+
+		rc = call_bind_function_output(
+				var,
+				type,
+				type_len,
+				(MYSQL_BIND *)jak_da_get( con->out, i )
+				);
+		check( rc == 0, va_cleanup );
+
+	}
+
+	check_msg(
+			va_arg( argp, const char * ) == NULL,
+			va_cleanup,
+			"Do you have to many bind params in your fra_my() call?"
+		 );
+
+	rc = mysql_stmt_bind_result( stmt, (MYSQL_BIND *)con->out->el );
+	check( rc == 0, va_cleanup );
+
+	va_end( argp );
+
+	return 0;
+
+va_cleanup:
+	va_end( argp );
 
 final_cleanup:
 	return -1;
