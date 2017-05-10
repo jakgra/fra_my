@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <jak_ht.h>
 #include <jak_da.h>
+#include <jak_hash_bstring.h>
 
 
 
@@ -31,6 +32,49 @@ struct con_my {
 };
 
 static fra_my_con_t * default_con = NULL;
+
+static MYSQL_STMT * get_stmt( struct con_my * con, bstring sql ) {
+
+	int rc;
+
+	MYSQL_STMT * stmt;
+	bstring key;
+
+
+	stmt = (MYSQL_STMT *)jak_ht_get( con->stmts, sql );
+
+	if( ! stmt ) {
+
+		stmt = mysql_stmt_init( con->con );
+		check( stmt, final_cleanup );
+
+		rc = mysql_stmt_prepare( stmt, bdata( sql ), blength( sql ) );
+		check( rc == 0, stmt_cleanup );
+
+		key = malloc( sizeof( struct tagbstring ) );
+		check( key, stmt_cleanup );
+
+		key->data = sql->data;
+		key->slen = sql->slen;
+		key->mlen = -1;
+
+		rc = jak_ht_set( con->stmts, (void *)key, (void *)stmt );
+		check( rc == 0, key_cleanup );
+
+	}
+
+	return stmt;
+
+key_cleanup:
+	free( key );
+
+stmt_cleanup:
+	mysql_stmt_close( stmt );
+
+final_cleanup:
+	return NULL;
+
+}
 
 static int add_default_con_to_request( fra_req_t * req ) {
 
@@ -71,7 +115,7 @@ static int add_default_con_to_request( fra_req_t * req ) {
 	check( con, c_cleanup );
 
 	con->con = c;
-	con->stmts = jak_ht_new( 50, -1.0f, stmt_compare, jak_hash_bstring, stmt_destruct );
+	con->stmts = jak_ht_new( 50, -1.0f, biseq, jak_hash_bstring, stmt_destruct );
 	con->in = jak_da_new( 2, -1.0f, sizeof( MYSQL_BIND ) );
 	con->out = jak_da_new( 2, -1.0f, sizeof( MYSQL_BIND ) );
 	check( con->stmts && con->in && con->out, con_cleanup );
@@ -222,21 +266,25 @@ int fra_my( fra_req_t * req, fra_my_cb callback, char * sql, ... ) {
 	void * var;
 	MYSQL_STMT * stmt;
 	struct con_my * con;
+	struct tagbstring key;
 
-
-	stmt = get_stmt( req, sql );
-	check( stmt, final_cleanup );
 
 	count = mysql_stmt_param_count( stmt );
 
 	con = fra( req, "fra_my_con", struct con_my * );
 	check( con, final_cleanup );
 
+	key.data = sql;
+	key.slen = sizeof( sql ) - 1;
+	key.mlen = -1;
+
+	stmt = get_stmt( con, &key );
+	check( stmt, final_cleanup );
+
 	rc = jak_da_resize( con->in, count );
 	check( rc == 0, final_cleanup );
 
-	rc = jak_da_zero_out( con->in );
-	check( rc == 0, final_cleanup );
+	jak_da_zero_out( con->in );
 
 	va_start( argp, sql );
 
@@ -272,8 +320,7 @@ int fra_my( fra_req_t * req, fra_my_cb callback, char * sql, ... ) {
 	rc = jak_da_resize( con->out, count );
 	check( rc == 0, va_cleanup );
 
-	rc = jak_da_zero_out( con->out );
-	check( rc == 0, va_cleanup );
+	jak_da_zero_out( con->out );
 
 	for( i = 0; i < count; i++ ) {
 
